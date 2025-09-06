@@ -1,0 +1,348 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 2aee3d6f8ccb4888acd3cbff92c60d63
+      name: Templates/Futur-Tech/Applications
+  templates:
+    - uuid: e03d9a8ab4a040dca796d7a84a9bb88c
+      template: 'Futur-Tech App Veeam Agent'
+      name: 'Futur-Tech App Veeam Agent'
+      description: |
+        https://github.com/Futur-Tech/futur-tech-zabbix-veeam
+        Forked to add more flexibility.
+        
+        Original: https://github.com/zabbix/community-templates/tree/main/Applications/Backup/template_veeam_agents_for_microsoft_windows/6.0
+        
+        Original template author: Cédric MARCOUX
+      groups:
+        - name: Templates/Futur-Tech/Applications
+      items:
+        - uuid: 113b9536349549f09912b9188e1eb08a
+          name: 'Veeam Agent: Event log'
+          type: ZABBIX_ACTIVE
+          key: 'eventlog[Veeam Agent,,,Veeam Agent,,,skip]'
+          delay: 10m
+          history: 90d
+          value_type: LOG
+          trends: '0'
+          tags:
+            - tag: component
+              value: backup
+          triggers:
+            - uuid: 1f94481d893245b1889c86bd72cd468b
+              expression: |
+                logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip],,195)=1 
+                and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip])=4
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: |
+                logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip],,195)=1 
+                and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip])=1
+              name: 'Veeam Agent synchronization completed with error'
+              opdata: 'Log: {{ITEM.VALUE}.regsub("([\s\S]*)", \1)}'
+              priority: AVERAGE
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+            - uuid: f225c9afdc414bf1b2784242c04040f6
+              expression: |
+                logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip],,195)=1 
+                and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip])=2
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: |
+                logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip],,195)=1 
+                and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip])=1
+              name: 'Veeam Agent synchronization completed with warning'
+              opdata: 'Log: {{ITEM.VALUE}.regsub("([\s\S]*)", \1)}'
+              priority: WARNING
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+            - uuid: cad644a9c1684c84956e1ebcd855a0a3
+              expression: |
+                logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip],,195)=1 
+                and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip])=1
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'nodata(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent,,,Veeam Agent,,,skip],1h)=1'
+              name: 'Veeam Agent synchronization successful'
+              opdata: 'Log: {{ITEM.VALUE}.regsub("([\s\S]*)", \1)}'
+              priority: INFO
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 179f26a9088d4e5aaafeef17a7a68f1a
+          name: 'Veeam Agent: Service state'
+          type: ZABBIX_ACTIVE
+          key: 'service.info[VeeamEndpointBackupSvc]'
+          delay: 10m
+          history: 90d
+          valuemap:
+            name: 'Windows service state'
+          tags:
+            - tag: component
+              value: backup
+          triggers:
+            - uuid: 06f6155fcd5442b3aae341d0a4e4c870
+              expression: |
+                min(/Futur-Tech App Veeam Agent/service.info[VeeamEndpointBackupSvc],#3)<>0 and
+                last(/Futur-Tech App Veeam Agent/service.info[VeeamEndpointBackupSvc],#4)=0
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Futur-Tech App Veeam Agent/service.info[VeeamEndpointBackupSvc])=0'
+              name: 'Veeam Agent service went down'
+              priority: HIGH
+              description: 'The service was running and now has a state other than "Running" for the last three times.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+      discovery_rules:
+        - uuid: 7c1ccc944ad6404bb7e912930f4c6d0f
+          name: 'Veeam Agent backup job discovery'
+          type: DEPENDENT
+          key: veeamagent.job.discovery
+          delay: '0'
+          description: 'Free Veeam Agent for Windows supports only one backup job.'
+          item_prototypes:
+            - uuid: 49cba26005724ab1bd04fe0c074cc4b3
+              name: 'Veeam Agent: Backup [{#JOB_NAME}] event log'
+              type: ZABBIX_ACTIVE
+              key: 'eventlog[Veeam Agent," \''{#JOB_NAME}\'' ",,Veeam Agent,,,skip]'
+              history: 90d
+              value_type: LOG
+              trends: '0'
+              tags:
+                - tag: component
+                  value: backup
+                - tag: veeam
+                  value: '{{#JOB_NAME}.lowercase()}'
+              trigger_prototypes:
+                - uuid: f22e7a75d64942179e632217a9d8f26f
+                  expression: |
+                    logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 
+                    and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=4
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: |
+                    (logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 
+                    and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=1)
+                    or {$VEEAM.BACKUP.IGNORE:"{#JOB_NAME}"}=1
+                  name: 'Veeam [{#JOB_NAME}] backup error'
+                  opdata: 'Log: {{ITEM.VALUE}.regsub("([\s\S]*)", \1)}'
+                  priority: AVERAGE
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: baee53bfdada431f90ac4a2a31355ed2
+                  expression: 'logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \''{#JOB_NAME}\'' ",,Veeam Agent,,,skip],,191)=1'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: |
+                    logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1
+                    or {$VEEAM.BACKUP.IGNORE:"{#JOB_NAME}"}=1
+                  name: 'Veeam [{#JOB_NAME}] backup finished with error and will be retried.'
+                  opdata: 'Log: {{ITEM.VALUE}.regsub("([\s\S]*)", \1)}'
+                  priority: AVERAGE
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: cb6449a04ba847dd826d1e7102507c2c
+                  expression: 'logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \''{#JOB_NAME}\'' ",,Veeam Agent,,,skip],,110)=1'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \''{#JOB_NAME}\'' ",,Veeam Agent,,,skip],,190)=1'
+                  name: 'Veeam [{#JOB_NAME}] backup started'
+                  priority: INFO
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - uuid: 485bffaa19044c7bb115605ce4223c42
+                  expression: |
+                    logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 
+                    and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=1
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'nodata(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \''{#JOB_NAME}\'' ",,Veeam Agent,,,skip],1h)=1'
+                  name: 'Veeam [{#JOB_NAME}] backup successful'
+                  status: DISABLED
+                  priority: INFO
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - uuid: 77aaa0fdebaa4ff08f65fadb3062b0c4
+                  expression: |
+                    logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 
+                    and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=2 
+                    and find(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,"iregexp","low on free disk space")=1
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: |
+                    (logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=1)
+                    or {$VEEAM.BACKUP.IGNORE:"{#JOB_NAME}"}=1
+                  name: 'Veeam [{#JOB_NAME}] backup successful with low free space'
+                  opdata: 'Log: {{ITEM.VALUE}.regsub("([\s\S]*)", \1)}'
+                  priority: WARNING
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Veeam [{#JOB_NAME}] backup error'
+                      expression: |
+                        logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 
+                        and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=4
+                      recovery_expression: |
+                        (logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 
+                        and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=1)
+                        or {$VEEAM.BACKUP.IGNORE:"{#JOB_NAME}"}=1
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: 0b2e6b9c9883468180bf16f96170d406
+                  expression: |
+                    logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 
+                    and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=2
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: |
+                    (logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=1)
+                    or {$VEEAM.BACKUP.IGNORE:"{#JOB_NAME}"}=1
+                  name: 'Veeam [{#JOB_NAME}] backup warning'
+                  opdata: 'Log: {{ITEM.VALUE}.regsub("([\s\S]*)", \1)}'
+                  priority: WARNING
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Veeam [{#JOB_NAME}] backup error'
+                      expression: |
+                        logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 
+                        and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=4
+                      recovery_expression: |
+                        (logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 
+                        and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=1)
+                        or {$VEEAM.BACKUP.IGNORE:"{#JOB_NAME}"}=1
+                    - name: 'Veeam [{#JOB_NAME}] backup successful with low free space'
+                      expression: |
+                        logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 
+                        and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=2 
+                        and find(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,"iregexp","low on free disk space")=1
+                      recovery_expression: |
+                        (logeventid(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip],,190)=1 and logseverity(/Futur-Tech App Veeam Agent/eventlog[Veeam Agent," \'{#JOB_NAME}\' ",,Veeam Agent,,,skip])=1)
+                        or {$VEEAM.BACKUP.IGNORE:"{#JOB_NAME}"}=1
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: 2ed0f0b92c1b4e588d09449a6c9c13c4
+              name: 'Veeam Agent: Backup [{#JOB_NAME}] age'
+              type: CALCULATED
+              key: 'veeam.backup.age[{#JOB_NAME}]'
+              delay: 10m
+              history: 90d
+              units: uptime
+              params: 'now()-last(//veeam.backup.success[{#JOB_NAME}])'
+              description: 'Calculate the age of latest successful backup [{#JOB_NAME}].'
+              tags:
+                - tag: component
+                  value: backup
+                - tag: veeam
+                  value: '{{#JOB_NAME}.lowercase()}'
+              trigger_prototypes:
+                - uuid: d5b164489c1941e492678f9a626f5519
+                  expression: |
+                    last(/Futur-Tech App Veeam Agent/veeam.backup.age[{#JOB_NAME}])>{$VEEAM.BACKUP.AGE.CRIT:"{#JOB_NAME}"}
+                    and {$VEEAM.BACKUP.IGNORE:"{#JOB_NAME}"}=0
+                  name: 'No Veeam backup [{#JOB_NAME}] for more than {$VEEAM.BACKUP.AGE.CRIT:"{#JOB_NAME}"}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: e3e186b05c4f457aaa55daf2126adcf6
+                  expression: |
+                    last(/Futur-Tech App Veeam Agent/veeam.backup.age[{#JOB_NAME}])>{$VEEAM.BACKUP.AGE.WARN:"{#JOB_NAME}"}
+                    and {$VEEAM.BACKUP.IGNORE:"{#JOB_NAME}"}=0
+                  name: 'No Veeam backup [{#JOB_NAME}] for more than {$VEEAM.BACKUP.AGE.WARN:"{#JOB_NAME}"}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'No Veeam backup [{#JOB_NAME}] for more than {$VEEAM.BACKUP.AGE.CRIT:"{#JOB_NAME}"}'
+                      expression: |
+                        last(/Futur-Tech App Veeam Agent/veeam.backup.age[{#JOB_NAME}])>{$VEEAM.BACKUP.AGE.CRIT:"{#JOB_NAME}"}
+                        and {$VEEAM.BACKUP.IGNORE:"{#JOB_NAME}"}=0
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: a42344ce971344109b721c23d5f151c5
+              name: 'Veeam Agent: Backup [{#JOB_NAME}] success'
+              type: DEPENDENT
+              key: 'veeam.backup.success[{#JOB_NAME}]'
+              delay: '0'
+              history: 90d
+              units: unixtime
+              description: |
+                Latest successful backup [{#JOB_NAME}] (calculated from Event Log).
+                The timestamp is based on when Zabbix received the Event.
+              preprocessing:
+                - type: REGEX
+                  parameters:
+                    - 'Veeam Agent \''.+\'' finished with Success\.'
+                    - \0
+                  error_handler: DISCARD_VALUE
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return Math.floor(Date.now()/1000); // stamp server time when event arrives'
+              master_item:
+                key: 'eventlog[Veeam Agent," \''{#JOB_NAME}\'' ",,Veeam Agent,,,skip]'
+              tags:
+                - tag: component
+                  value: backup
+                - tag: veeam
+                  value: '{{#JOB_NAME}.lowercase()}'
+          master_item:
+            key: 'eventlog[Veeam Agent,,,Veeam Agent,,,skip]'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^Veeam Agent \''(.+)\'' finished'
+                - '{"data":[{"{#JOB_NAME}":"\1"}]}'
+              error_handler: DISCARD_VALUE
+      tags:
+        - tag: class
+          value: software
+        - tag: Futur-Tech
+        - tag: target
+          value: veeam
+      macros:
+        - macro: '{$VEEAM.BACKUP.AGE.CRIT}'
+          value: 7d
+          description: 'Critical max age for latest successful backup'
+        - macro: '{$VEEAM.BACKUP.AGE.CRIT:"Job Test"}'
+          value: 3d
+          description: 'Override exemple'
+        - macro: '{$VEEAM.BACKUP.AGE.WARN}'
+          value: 3d
+          description: 'Warning max age for latest successful backup'
+        - macro: '{$VEEAM.BACKUP.AGE.WARN:"Job Test"}'
+          value: 1d
+          description: 'Override exemple'
+        - macro: '{$VEEAM.BACKUP.IGNORE}'
+          value: '0'
+          description: 'Ignore trigger max age for latest successful backup'
+        - macro: '{$VEEAM.BACKUP.IGNORE:"Job Test"}'
+          value: '1'
+          description: 'Override exemple'
+      valuemaps:
+        - uuid: e0df928a9d254a90a7159adfe2c53b83
+          name: 'Windows service state'
+          mappings:
+            - value: '0'
+              newvalue: Running
+            - value: '1'
+              newvalue: Paused
+            - value: '2'
+              newvalue: 'Start pending'
+            - value: '3'
+              newvalue: 'Pause pending'
+            - value: '4'
+              newvalue: 'Continue pending'
+            - value: '5'
+              newvalue: 'Stop pending'
+            - value: '6'
+              newvalue: Stopped
+            - value: '7'
+              newvalue: Unknown
+            - value: '255'
+              newvalue: 'No such service'
